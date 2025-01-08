@@ -1,13 +1,21 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
+
+type TokenResponse struct {
+	Scope string `json:"scope"`
+	URL   string `json:"url"`
+}
 
 func main() {
 	err := godotenv.Load("../.env")
@@ -16,18 +24,23 @@ func main() {
 		return
 	}
 
-	token := os.Getenv("TOKEN")
+	clientid := os.Getenv("APP_ID")
+	clientSecret := os.Getenv("CLIENT_SECRET")
 
-	url := "https://discord.com/api"
-	//jsonData := []byte(`{"key":value}`)
+	apiUrl := "https://discord.com/api/v10"
 
-	req, err := http.NewRequest("GET", url+"/oauth2/@me", nil)
+	data := url.Values{}
+	data.Set("grant_type", "client_credentials")
+	data.Set("scope", "identify connections bot")
+	data.Set("client_id", clientid)
+	data.Set("client_secret", clientSecret)
+
+	req, err := http.NewRequest("POST", apiUrl+"/oauth2/token", strings.NewReader(data.Encode()))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bot "+token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	client := &http.Client{}
 	response, err := client.Do(req)
@@ -43,6 +56,38 @@ func main() {
 		return
 	}
 
-	fmt.Println(string(body))
-	fmt.Println("token: " + string(token))
+	var tokenResponse TokenResponse
+	err = json.Unmarshal(body, &tokenResponse)
+	if err != nil {
+		fmt.Println("Error unmarshalling response")
+	}
+
+	req, err = http.NewRequest("GET", apiUrl+"/gateway", nil)
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client = &http.Client{}
+	response, err = client.Do(req)
+	if err != nil {
+		fmt.Println("Error getting gateway")
+		return
+	}
+	defer response.Body.Close()
+
+	body, err = io.ReadAll(response.Body)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	err = json.Unmarshal(body, &tokenResponse)
+	if err != nil {
+		fmt.Println("Error unmarshalling response")
+	}
+
+	fmt.Println(tokenResponse.URL)
 }
