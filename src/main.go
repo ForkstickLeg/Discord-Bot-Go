@@ -17,6 +17,10 @@ type TokenResponse struct {
 	URL   string `json:"url"`
 }
 
+type Command struct {
+	ID string `json:"id"`
+}
+
 var oauthToken string
 var wslUrl string
 
@@ -29,6 +33,7 @@ func main() {
 
 	clientid := os.Getenv("APP_ID")
 	clientSecret := os.Getenv("CLIENT_SECRET")
+	botToken := os.Getenv("BOT_TOKEN")
 
 	key := []string{"Content-Type"}
 	value := []string{"application/x-www-form-urlencoded"}
@@ -39,18 +44,22 @@ func main() {
 
 	fmt.Println(wslUrl + "\n" + oauthToken)
 
-	data := url.Values{}
-
 	key = append(key, "Authorization")
-	value = append(value, "Bearer "+oauthToken)
+	value = append(value, "Bot "+botToken)
 
-	data.Set("name", "silence")
-	data.Set("type", "2")
-	data.Set("application_id", clientid)
-	data.Set("description", "Server mutes and deletes all messages sent by a person")
+	commands := makeCall("https://discord.com/api/v10/applications/"+clientid+"/commands", "GET", key, value)
 
-	out := makeCall("https://discord.com/api/v10/applications/"+clientid+"/commands", "POST", key, value, data.Encode())
-	fmt.Println(out)
+	fmt.Println("Raw response:", string(commands))
+
+	var output []Command
+	err = json.Unmarshal(commands, &output)
+	if err != nil {
+		fmt.Println("Error unmarshalling response")
+	}
+
+	for _, out := range output {
+		fmt.Printf("ID: %s\n", out.ID)
+	}
 }
 
 func makeCall(apiUrl string, method string, key []string, value []string, body ...string) []byte {
