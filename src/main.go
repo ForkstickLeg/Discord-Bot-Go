@@ -1,18 +1,17 @@
 package main
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
-	"os/signal"
+	"runtime"
 	"strings"
-	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
-	"golang.org/x/crypto/ed25519"
 	"golang.org/x/net/websocket"
 )
 
@@ -24,6 +23,25 @@ type GatewayResponse struct {
 	URL string `json:"url"`
 }
 
+type Message struct {
+	Op int    `json:"op"`
+	D  Data   `json:"d"`
+	S  string `json:"s"`
+	d  string `json:"d"`
+}
+
+type Data struct {
+	Heartbeat  int   `json:"heartbeat_interval"`
+	Properties Props `json:"properties"`
+	Intents    int   `json:"intents"`
+}
+
+type Props struct {
+	Os      string `json:"os"`
+	Browser string `json:"browser"`
+	Device  string `json:"device"`
+}
+
 type Command struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -32,8 +50,11 @@ type Command struct {
 
 var botToken string
 var clientid string
-var publicKey string
 var gatewayURL string
+var heartbeatInterval int
+var intents int = 1<<0 | 1<<1
+var resumeGatewayUrl string
+var sessionId int
 
 func main() {
 	err := godotenv.Load("../.env")
@@ -44,32 +65,16 @@ func main() {
 
 	clientid = os.Getenv("APP_ID")
 	botToken = os.Getenv("BOT_TOKEN")
-	publicKey = os.Getenv("PUBLIC_KEY")
 
 	output := setupCommand("silence", "Use this command to totally silence someone. Specify the amount of time (in minutes), default is 1")
 
 	gatewayURL = getWSUrl()
 
+	go setupWebSocket(gatewayURL)
+
 	fmt.Printf("ID: %s\nName: %s\nDescription:%s", output.ID, output.Name, output.Description)
 
-	http.HandleFunc("/ack", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Request acknowledged")
-	})
-
-	http.HandleFunc("/", postHandler)
-
-	go func() {
-		if err := http.ListenAndServe(":8080", nil); err != nil {
-			fmt.Println("HTTP server error", err)
-		}
-	}()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	sig := <-sigChan
-	fmt.Println("Received signal:", sig)
-	fmt.Println("Shutting down gracefully")
+	select {}
 }
 
 func makeCall(apiUrl string, method string, key []string, value []string, body ...string) []byte {
@@ -105,7 +110,7 @@ func makeCall(apiUrl string, method string, key []string, value []string, body .
 	return output
 }
 
-func setupWebSocket(websocketURL string, userId int) {
+func setupWebSocket(websocketURL string) {
 	conn, err := websocket.Dial(websocketURL, "", "http://localhost/")
 	if err != nil {
 		fmt.Println("Error connecting to WebSocket:", err)
@@ -117,68 +122,106 @@ func setupWebSocket(websocketURL string, userId int) {
 		var message string
 		err := websocket.Message.Receive(conn, &message)
 		if err != nil {
+			if err.Error() == "EOF" {
+				fmt.Println("WebSocket connection closed by server")
+				return
+			}
 			fmt.Println("Error reading message:", err)
 			return
 		}
-		fmt.Printf("Received message: %s\n", message)
+		go handleGatewayMessage(conn, message)
 	}
 }
 
-func postHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		signature := r.Header.Get("X-Signature-Ed25519")
-		timestamp := r.Header.Get("X-Signature-Timestamp")
-
-		body, err := io.ReadAll(r.Body)
+func handleGatewayMessage(conn *websocket.Conn, message string) {
+	var msg Message
+	err := json.Unmarshal([]byte(message), &msg)
+	if err != nil {
+		fmt.Println("Error unmarshalling message: ", err)
+		return
+	}
+	fmt.Println(message)
+	switch msg.Op {
+	case 10:
+		//Hello message
+		heartbeatInterval = msg.D.Heartbeat
+		sendMessage := Message{
+			Op: 1,
+			d:  msg.S,
+		}
+		sendMessageJSON, err := json.Marshal(sendMessage)
 		if err != nil {
-			http.Error(w, "Error reading request body", http.StatusInternalServerError)
+			fmt.Println("Error marshalling message: ", err)
 			return
 		}
-
-		message := append([]byte(timestamp), body...)
-		sig, err := hex.DecodeString(signature)
+		randomSleep := rand.Intn(msg.D.Heartbeat)
+		go func() {
+			sendMessage = Message{
+				Op: 1,
+				D: Data{
+					Properties: Props{
+						Os:      runtime.GOOS,
+						Browser: "CSL's Discord App",
+						Device:  "CSL's Discord App",
+					},
+					Intents: intents,
+				},
+			}
+			sendMessageJSON, err = json.Marshal(sendMessage)
+			if err != nil {
+				fmt.Println("Error marshalling message: ", err)
+				return
+			}
+			err = websocket.Message.Send(conn, string(sendMessageJSON))
+			if err != nil {
+				fmt.Println("Error sending message: ", err)
+				return
+			}
+			fmt.Println("Identify message sent")
+		}()
+		time.Sleep(time.Duration(randomSleep) * time.Millisecond)
+		err = websocket.Message.Send(conn, string(sendMessageJSON))
 		if err != nil {
-			http.Error(w, "Invalid signature format", http.StatusBadRequest)
+			fmt.Println("Error sending message: ", err)
 			return
 		}
-
-		pubKey, err := hex.DecodeString(publicKey)
+		fmt.Println("message sent")
+	case 1:
+		//Heartbeat message, requires immediate heartbeat return
+		sendMessage := Message{
+			Op: 1,
+		}
+		sendMessageJSON, err := json.Marshal(sendMessage)
 		if err != nil {
-			http.Error(w, "Invalid public key format", http.StatusInternalServerError)
+			fmt.Println("Error marshalling message: ", err)
 			return
 		}
-
-		if !ed25519.Verify(pubKey, message, sig) {
-			http.Error(w, "Invalid request signature", http.StatusUnauthorized)
+		err = websocket.Message.Send(conn, string(sendMessageJSON))
+		if err != nil {
+			fmt.Println("Error sending message: ", err)
 			return
 		}
-
-		var interaction Interaction
-		if err := json.Unmarshal(body, &interaction); err != nil {
-			http.Error(w, "Error unmarshalling request body", http.StatusBadRequest)
+	case 11:
+		//Heartbeat ack
+		fmt.Println("Heartbeat ACK received")
+		sendMessage := Message{
+			Op: 1,
+			d:  msg.S,
+		}
+		sendMessageJSON, err := json.Marshal(sendMessage)
+		if err != nil {
+			fmt.Println("Error marshalling message: ", err)
 			return
 		}
-
-		if interaction.Type == 1 {
-			response := map[string]int{"type": 1}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+		time.Sleep(time.Duration(heartbeatInterval) * time.Millisecond)
+		err = websocket.Message.Send(conn, string(sendMessageJSON))
+		if err != nil {
+			fmt.Println("Error sending message: ", err)
 			return
 		}
-
-		if interaction.Type == 2 {
-			response := map[string]interface{}{"type": 4, "data": map[string]string{"content": "User has been silenced"}}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
-			return
-			//TODO: actually call the function to handle muting the person
-		}
-
-		response := map[string]int{"type": 1}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	} else {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		fmt.Println("message sent")
+	case 0:
+		//This is where the payload will come from
 	}
 }
 
