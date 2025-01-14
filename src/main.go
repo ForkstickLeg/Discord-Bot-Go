@@ -24,22 +24,31 @@ type GatewayResponse struct {
 }
 
 type Message struct {
-	Op int    `json:"op"`
-	D  Data   `json:"d"`
-	S  string `json:"s"`
-	d  string `json:"d"`
+	Op int         `json:"op"`
+	D  interface{} `json:"d"`
+	S  *int        `json:"s,omitempty"`
+	T  *string     `json:"t,omitempty"`
 }
 
-type Data struct {
-	Heartbeat  int   `json:"heartbeat_interval"`
-	Properties Props `json:"properties"`
-	Intents    int   `json:"intents"`
+type HelloMessageData struct {
+	HeartbeatInterval int `json:"heartbeat_interval"`
+}
+
+type IdentifyMessageData struct {
+	Token      string `json:"token"`
+	Properties Props  `json:"properties"`
+	Intents    int    `json:"intents"`
 }
 
 type Props struct {
 	Os      string `json:"os"`
 	Browser string `json:"browser"`
 	Device  string `json:"device"`
+}
+
+type ReadyPayload struct {
+	SessionId        string `json:"session_id"`
+	resumeGatewayUrl string `json:"resume_gateway_url"`
 }
 
 type Command struct {
@@ -54,7 +63,9 @@ var gatewayURL string
 var heartbeatInterval int
 var intents int = 1<<0 | 1<<1
 var resumeGatewayUrl string
-var sessionId int
+var sessionId string
+var sequenceNum int
+var retryCount int = 3
 
 func main() {
 	err := godotenv.Load("../.env")
@@ -111,24 +122,72 @@ func makeCall(apiUrl string, method string, key []string, value []string, body .
 }
 
 func setupWebSocket(websocketURL string) {
-	conn, err := websocket.Dial(websocketURL, "", "http://localhost/")
+	const maxRetries = 3
+	const retryDelay = 3 * time.Second
+
+	var conn *websocket.Conn
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		conn, err = websocket.Dial(websocketURL, "", "http://localhost/")
+		if err == nil {
+			fmt.Println("Connected to WebSocket")
+			break
+		}
+		fmt.Printf("Error connecting to WebSocket (attempt %d/%d): %v\n", i+1, maxRetries, err)
+		time.Sleep(retryDelay)
+	}
+
 	if err != nil {
-		fmt.Println("Error connecting to WebSocket:", err)
+		fmt.Println("Failed to connect to WebSocket after multiple attempts")
 		return
 	}
-	defer conn.Close()
 
+	if len(sessionId) != 0 {
+		msg := Message{
+			Op: 6,
+			D: map[string]interface{}{
+				"token":      botToken,
+				"session_id": sessionId,
+				"seq":        sequenceNum,
+			},
+		}
+		msgJSON, err := json.Marshal(msg)
+		if err != nil {
+			fmt.Println("Error marshalling data")
+		}
+		websocket.Message.Send(conn, string(msgJSON))
+	}
+
+	defer conn.Close()
 	for {
 		var message string
 		err := websocket.Message.Receive(conn, &message)
 		if err != nil {
 			if err.Error() == "EOF" {
 				fmt.Println("WebSocket connection closed by server")
+				if resumeGatewayUrl != "" {
+					fmt.Println("Attempting to reconnect using resumeGatewayUrl")
+					for i := 0; i < maxRetries; i++ {
+						conn, err = websocket.Dial(resumeGatewayUrl, "", "http://localhost/")
+						if err == nil {
+							fmt.Println("Reconnected to WebSocket")
+							break
+						}
+						fmt.Printf("Error reconnecting to WebSocket (attempt %d/%d): %v\n", i+1, maxRetries, err)
+						time.Sleep(retryDelay)
+					}
+					if err != nil {
+						fmt.Println("Failed to reconnect to WebSocket after multiple attempts")
+						return
+					}
+					continue
+				}
 				return
 			}
 			fmt.Println("Error reading message:", err)
 			return
 		}
+
 		go handleGatewayMessage(conn, message)
 	}
 }
@@ -138,27 +197,34 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 	err := json.Unmarshal([]byte(message), &msg)
 	if err != nil {
 		fmt.Println("Error unmarshalling message: ", err)
+		fmt.Println("Message: ", message)
 		return
 	}
-	fmt.Println(message)
 	switch msg.Op {
 	case 10:
 		//Hello message
-		heartbeatInterval = msg.D.Heartbeat
-		sendMessage := Message{
-			Op: 1,
-			d:  msg.S,
-		}
-		sendMessageJSON, err := json.Marshal(sendMessage)
-		if err != nil {
-			fmt.Println("Error marshalling message: ", err)
+		var data HelloMessageData
+		rawData, ok := msg.D.(map[string]interface{})
+		if !ok {
+			fmt.Println("Error asserting baseMsg.D to map[string]interface{}")
 			return
 		}
-		randomSleep := rand.Intn(msg.D.Heartbeat)
+		rawDataBytes, err := json.Marshal(rawData)
+		if err != nil {
+			fmt.Println("Error marshalling rawData to bytes: ", err)
+			return
+		}
+		err = json.Unmarshal(rawDataBytes, &data)
+		if err != nil {
+			fmt.Println("Error unmarshalling message: ", err)
+			fmt.Println("Message: ", message)
+			return
+		}
 		go func() {
-			sendMessage = Message{
-				Op: 1,
-				D: Data{
+			sendIdentifyMessage := Message{
+				Op: 2,
+				D: IdentifyMessageData{
+					Token: botToken,
 					Properties: Props{
 						Os:      runtime.GOOS,
 						Browser: "CSL's Discord App",
@@ -167,7 +233,7 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 					Intents: intents,
 				},
 			}
-			sendMessageJSON, err = json.Marshal(sendMessage)
+			sendMessageJSON, err := json.Marshal(sendIdentifyMessage)
 			if err != nil {
 				fmt.Println("Error marshalling message: ", err)
 				return
@@ -179,13 +245,24 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			}
 			fmt.Println("Identify message sent")
 		}()
+		heartbeatInterval = data.HeartbeatInterval
+		randomSleep := rand.Intn(heartbeatInterval)
+		sendMessage := Message{
+			Op: 1,
+			D:  &sequenceNum,
+		}
+		sendMessageJSON, err := json.Marshal(sendMessage)
+		if err != nil {
+			fmt.Println("Error marshalling message: ", err)
+			return
+		}
 		time.Sleep(time.Duration(randomSleep) * time.Millisecond)
 		err = websocket.Message.Send(conn, string(sendMessageJSON))
 		if err != nil {
 			fmt.Println("Error sending message: ", err)
 			return
 		}
-		fmt.Println("message sent")
+		fmt.Println("Heartbeat message sent")
 	case 1:
 		//Heartbeat message, requires immediate heartbeat return
 		sendMessage := Message{
@@ -202,11 +279,10 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			return
 		}
 	case 11:
-		//Heartbeat ack
 		fmt.Println("Heartbeat ACK received")
 		sendMessage := Message{
 			Op: 1,
-			d:  msg.S,
+			D:  &sequenceNum,
 		}
 		sendMessageJSON, err := json.Marshal(sendMessage)
 		if err != nil {
@@ -219,9 +295,46 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			fmt.Println("Error sending message: ", err)
 			return
 		}
-		fmt.Println("message sent")
+		fmt.Println("Heartbeat message sent")
+	case 7:
+		conn.Close()
+		setupWebSocket(resumeGatewayUrl)
 	case 0:
 		//This is where the payload will come from
+		switch *msg.T {
+		case "READY":
+			var data ReadyPayload
+			rawData, ok := msg.D.(map[string]interface{})
+			if !ok {
+				fmt.Println("Error asserting baseMsg.D to map[string]interface{}")
+				return
+			}
+			rawDataBytes, err := json.Marshal(rawData)
+			if err != nil {
+				fmt.Println("Error marshalling rawData to bytes: ", err)
+				return
+			}
+			err = json.Unmarshal(rawDataBytes, &data)
+			if err != nil {
+				fmt.Println("Error unmarshalling message: ", err)
+				fmt.Println("Message: ", message)
+				return
+			}
+			sequenceNum = *msg.S
+			sessionId = data.SessionId
+			resumeGatewayUrl = data.resumeGatewayUrl
+		default:
+			fmt.Println("unknown message received\n" + message)
+		}
+	case 9:
+		if msg.D == "true" {
+			conn.Close()
+			setupWebSocket(resumeGatewayUrl)
+		} else {
+			fmt.Println("Invalid session error")
+			conn.Close()
+			setupWebSocket(gatewayURL)
+		}
 	}
 }
 
