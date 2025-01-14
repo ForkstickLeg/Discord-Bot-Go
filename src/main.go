@@ -48,7 +48,7 @@ type Props struct {
 
 type ReadyPayload struct {
 	SessionId        string `json:"session_id"`
-	resumeGatewayUrl string `json:"resume_gateway_url"`
+	ResumeGatewayURL string `json:"resume_gateway_url"`
 }
 
 type Command struct {
@@ -65,7 +65,6 @@ var intents int = 1<<0 | 1<<1
 var resumeGatewayUrl string
 var sessionId string
 var sequenceNum int
-var retryCount int = 3
 
 func main() {
 	err := godotenv.Load("../.env")
@@ -81,8 +80,13 @@ func main() {
 
 	gatewayURL = getWSUrl()
 
-	go setupWebSocket(gatewayURL)
-
+	go func() {
+		conn, err := setupWebSocket(gatewayURL)
+		if err != nil {
+			fmt.Println("Error setting up connection")
+		}
+		readMessages(conn)
+	}()
 	fmt.Printf("ID: %s\nName: %s\nDescription:%s", output.ID, output.Name, output.Description)
 
 	select {}
@@ -121,7 +125,11 @@ func makeCall(apiUrl string, method string, key []string, value []string, body .
 	return output
 }
 
-func setupWebSocket(websocketURL string) {
+func setupWebSocket(websocketURL string) (*websocket.Conn, error) {
+	if websocketURL == "" {
+		return nil, fmt.Errorf("websocket URL is empty")
+	}
+
 	const maxRetries = 3
 	const retryDelay = 3 * time.Second
 
@@ -139,7 +147,7 @@ func setupWebSocket(websocketURL string) {
 
 	if err != nil {
 		fmt.Println("Failed to connect to WebSocket after multiple attempts")
-		return
+		return nil, err
 	}
 
 	if len(sessionId) != 0 {
@@ -158,36 +166,41 @@ func setupWebSocket(websocketURL string) {
 		websocket.Message.Send(conn, string(msgJSON))
 	}
 
-	defer conn.Close()
+	return conn, nil
+}
+func readMessages(conn *websocket.Conn) {
+	var message string
 	for {
-		var message string
 		err := websocket.Message.Receive(conn, &message)
 		if err != nil {
 			if err.Error() == "EOF" {
 				fmt.Println("WebSocket connection closed by server")
 				if resumeGatewayUrl != "" {
 					fmt.Println("Attempting to reconnect using resumeGatewayUrl")
-					for i := 0; i < maxRetries; i++ {
-						conn, err = websocket.Dial(resumeGatewayUrl, "", "http://localhost/")
-						if err == nil {
-							fmt.Println("Reconnected to WebSocket")
-							break
-						}
-						fmt.Printf("Error reconnecting to WebSocket (attempt %d/%d): %v\n", i+1, maxRetries, err)
-						time.Sleep(retryDelay)
-					}
+					conn, err = setupWebSocket(resumeGatewayUrl)
 					if err != nil {
 						fmt.Println("Failed to reconnect to WebSocket after multiple attempts")
 						return
 					}
+					fmt.Println("Reconnected to WebSocket")
 					continue
 				}
 				return
+			} else if strings.Contains(err.Error(), "use of closed network connection") {
+				if resumeGatewayUrl != "" {
+					fmt.Println("Attempting to reconnect using resumeGatewayUrl")
+					conn, err = setupWebSocket(resumeGatewayUrl)
+					if err != nil {
+						fmt.Println("Failed to reconnect to WebSocket after multiple attempts")
+						return
+					}
+					fmt.Println("Reconnected to WebSocket")
+					continue
+				}
 			}
 			fmt.Println("Error reading message:", err)
 			return
 		}
-
 		go handleGatewayMessage(conn, message)
 	}
 }
@@ -322,7 +335,7 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			}
 			sequenceNum = *msg.S
 			sessionId = data.SessionId
-			resumeGatewayUrl = data.resumeGatewayUrl
+			resumeGatewayUrl = data.ResumeGatewayURL
 		default:
 			fmt.Println("unknown message received\n" + message)
 		}
