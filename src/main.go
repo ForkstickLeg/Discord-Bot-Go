@@ -163,6 +163,7 @@ func setupWebSocket(websocketURL string) (*websocket.Conn, error) {
 		if err != nil {
 			fmt.Println("Error marshalling data")
 		}
+		fmt.Println(string(msgJSON))
 		websocket.Message.Send(conn, string(msgJSON))
 	}
 
@@ -176,6 +177,7 @@ func readMessages(conn *websocket.Conn) {
 			if err.Error() == "EOF" {
 				fmt.Println("WebSocket connection closed by server")
 				if resumeGatewayUrl != "" {
+					conn.Close()
 					fmt.Println("Attempting to reconnect using resumeGatewayUrl")
 					conn, err = setupWebSocket(resumeGatewayUrl)
 					if err != nil {
@@ -187,6 +189,7 @@ func readMessages(conn *websocket.Conn) {
 				}
 				return
 			} else if strings.Contains(err.Error(), "use of closed network connection") {
+				conn.Close()
 				if resumeGatewayUrl != "" {
 					fmt.Println("Attempting to reconnect using resumeGatewayUrl")
 					conn, err = setupWebSocket(resumeGatewayUrl)
