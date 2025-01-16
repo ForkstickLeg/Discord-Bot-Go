@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,8 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/joho/godotenv"
-	"golang.org/x/net/websocket"
 )
 
 type Interaction struct {
@@ -84,6 +85,7 @@ func main() {
 		conn, err := setupWebSocket(gatewayURL)
 		if err != nil {
 			fmt.Println("Error setting up connection")
+			return
 		}
 		readMessages(conn)
 	}()
@@ -136,7 +138,7 @@ func setupWebSocket(websocketURL string) (*websocket.Conn, error) {
 	var conn *websocket.Conn
 	var err error
 	for i := 0; i < maxRetries; i++ {
-		conn, err = websocket.Dial(websocketURL, "", "http://localhost/")
+		conn, _, err = websocket.Dial(context.Background(), websocketURL, nil)
 		if err == nil {
 			fmt.Println("Connected to WebSocket")
 			break
@@ -164,47 +166,40 @@ func setupWebSocket(websocketURL string) (*websocket.Conn, error) {
 			fmt.Println("Error marshalling data")
 		}
 		fmt.Println(string(msgJSON))
-		websocket.Message.Send(conn, string(msgJSON))
+		err = conn.Write(context.Background(), websocket.MessageText, msgJSON)
+		if err != nil {
+			fmt.Println("Error sending message:", err)
+		}
 	}
 
 	return conn, nil
 }
+
 func readMessages(conn *websocket.Conn) {
-	var message string
 	for {
-		err := websocket.Message.Receive(conn, &message)
+		_, message, err := conn.Read(context.Background())
 		if err != nil {
-			if err.Error() == "EOF" {
-				fmt.Println("WebSocket connection closed by server")
-				if resumeGatewayUrl != "" {
-					conn.Close()
-					fmt.Println("Attempting to reconnect using resumeGatewayUrl")
-					conn, err = setupWebSocket(resumeGatewayUrl)
-					if err != nil {
-						fmt.Println("Failed to reconnect to WebSocket after multiple attempts")
-						return
-					}
-					fmt.Println("Reconnected to WebSocket")
-					continue
-				}
-				return
-			} else if strings.Contains(err.Error(), "use of closed network connection") {
-				conn.Close()
-				if resumeGatewayUrl != "" {
-					fmt.Println("Attempting to reconnect using resumeGatewayUrl")
-					conn, err = setupWebSocket(resumeGatewayUrl)
-					if err != nil {
-						fmt.Println("Failed to reconnect to WebSocket after multiple attempts")
-						return
-					}
-					fmt.Println("Reconnected to WebSocket")
-					continue
-				}
-			}
 			fmt.Println("Error reading message:", err)
+			conn.Close(websocket.StatusNormalClosure, "reconnect")
+			reconnect()
 			return
 		}
-		go handleGatewayMessage(conn, message)
+		handleGatewayMessage(conn, string(message))
+	}
+}
+
+func reconnect() {
+	var conn *websocket.Conn
+	var err error
+	for {
+		conn, err = setupWebSocket(resumeGatewayUrl)
+		if err == nil {
+			fmt.Println("Reconnected to WebSocket")
+			readMessages(conn)
+			break
+		}
+		fmt.Println("Error reconnecting to WebSocket:", err)
+		time.Sleep(5 * time.Second) // Wait before retrying
 	}
 }
 
@@ -236,7 +231,8 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			fmt.Println("Message: ", message)
 			return
 		}
-		go func() {
+		if len(sessionId) == 0 {
+
 			sendIdentifyMessage := Message{
 				Op: 2,
 				D: IdentifyMessageData{
@@ -254,13 +250,14 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 				fmt.Println("Error marshalling message: ", err)
 				return
 			}
-			err = websocket.Message.Send(conn, string(sendMessageJSON))
+			err = conn.Write(context.Background(), websocket.MessageText, sendMessageJSON)
 			if err != nil {
 				fmt.Println("Error sending message: ", err)
 				return
 			}
 			fmt.Println("Identify message sent")
-		}()
+
+		}
 		heartbeatInterval = data.HeartbeatInterval
 		randomSleep := rand.Intn(heartbeatInterval)
 		sendMessage := Message{
@@ -273,7 +270,7 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			return
 		}
 		time.Sleep(time.Duration(randomSleep) * time.Millisecond)
-		err = websocket.Message.Send(conn, string(sendMessageJSON))
+		err = conn.Write(context.Background(), websocket.MessageText, sendMessageJSON)
 		if err != nil {
 			fmt.Println("Error sending message: ", err)
 			return
@@ -289,7 +286,7 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			fmt.Println("Error marshalling message: ", err)
 			return
 		}
-		err = websocket.Message.Send(conn, string(sendMessageJSON))
+		err = conn.Write(context.Background(), websocket.MessageText, sendMessageJSON)
 		if err != nil {
 			fmt.Println("Error sending message: ", err)
 			return
@@ -306,14 +303,14 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			return
 		}
 		time.Sleep(time.Duration(heartbeatInterval) * time.Millisecond)
-		err = websocket.Message.Send(conn, string(sendMessageJSON))
+		err = conn.Write(context.Background(), websocket.MessageText, sendMessageJSON)
 		if err != nil {
 			fmt.Println("Error sending message: ", err)
 			return
 		}
 		fmt.Println("Heartbeat message sent")
 	case 7:
-		conn.Close()
+		conn.Close(websocket.StatusNormalClosure, "reconnect")
 		setupWebSocket(resumeGatewayUrl)
 	case 0:
 		//This is where the payload will come from
@@ -344,11 +341,11 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 		}
 	case 9:
 		if msg.D == "true" {
-			conn.Close()
+			conn.Close(websocket.StatusNormalClosure, "reconnect")
 			setupWebSocket(resumeGatewayUrl)
 		} else {
 			fmt.Println("Invalid session error")
-			conn.Close()
+			conn.Close(websocket.StatusNormalClosure, "reconnect")
 			setupWebSocket(gatewayURL)
 		}
 	}
