@@ -16,10 +16,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type Interaction struct {
-	Type int `json:"type"`
-}
-
 type GatewayResponse struct {
 	URL string `json:"url"`
 }
@@ -58,11 +54,19 @@ type Command struct {
 	Description string `json:"description"`
 }
 
+type Interaction struct {
+	Data interface{} `json:"data"`
+}
+
+type InteractionData struct {
+	Name string `json:"name"`
+}
+
 var botToken string
 var clientid string
 var gatewayURL string
 var heartbeatInterval int
-var intents int = 1<<0 | 1<<1
+var intents int = 1<<0 | 1<<1 | 1<<9 | 1<<15
 var resumeGatewayUrl string
 var sessionId string
 var sequenceNum int
@@ -130,6 +134,8 @@ func makeCall(apiUrl string, method string, key []string, value []string, body .
 func setupWebSocket(websocketURL string) (*websocket.Conn, error) {
 	if websocketURL == "" {
 		return nil, fmt.Errorf("websocket URL is empty")
+	} else {
+		websocketURL = websocketURL + "?v=10&encoding=json"
 	}
 
 	const maxRetries = 3
@@ -336,6 +342,10 @@ func handleGatewayMessage(conn *websocket.Conn, message string) {
 			sequenceNum = *msg.S
 			sessionId = data.SessionId
 			resumeGatewayUrl = data.ResumeGatewayURL
+		case "INTERACTION_CREATE":
+			handleInteraction(msg)
+		case "RESUMED":
+			fmt.Println("Session Resumed")
 		default:
 			fmt.Println("unknown message received\n" + message)
 		}
@@ -404,6 +414,51 @@ func getWSUrl() string {
 		fmt.Println("Error unmarshalling response")
 	}
 	return output.URL
+}
+
+func handleInteraction(message Message) {
+	var interaction Interaction
+	parseDataTo(&interaction, message)
+	var data InteractionData
+	rawData, ok := interaction.Data.(map[string]interface{})
+	if !ok {
+		fmt.Println("Error asserting baseMsg.D to map[string]interface{}")
+		return
+	}
+	rawDataBytes, err := json.Marshal(rawData)
+	if err != nil {
+		fmt.Println("Error marshalling rawData to bytes: ", err)
+		return
+	}
+	err = json.Unmarshal(rawDataBytes, &data)
+	if err != nil {
+		fmt.Println("Error unmarshalling message: ", err)
+		fmt.Println("Message: ", message)
+		return
+	}
+	switch InteractionData.Name {
+		case "silence":
+
+	}
+}
+
+func parseDataTo(returnedObject interface{}, message Message) {
+	rawData, ok := message.D.(map[string]interface{})
+	if !ok {
+		fmt.Println("Error asserting baseMsg.D to map[string]interface{}")
+		return
+	}
+	rawDataBytes, err := json.Marshal(rawData)
+	if err != nil {
+		fmt.Println("Error marshalling rawData to bytes: ", err)
+		return
+	}
+	err = json.Unmarshal(rawDataBytes, returnedObject)
+	if err != nil {
+		fmt.Println("Error unmarshalling message: ", err)
+		fmt.Println("Message: ", message)
+		return
+	}
 }
 
 func silence(memberId int, minutes int) {
