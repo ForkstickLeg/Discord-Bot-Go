@@ -57,3 +57,9 @@ type InteractionDataOptions struct {
 	Type  int         `json:"type"`
 	Value interface{} `json:"value"`
 }
+
+type User struct {
+	Id            string `json:"id,omitempty"`
+	Username      string `json:"username"`
+	Discriminator string `json:"discriminator"`
+}

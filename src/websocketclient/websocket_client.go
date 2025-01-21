@@ -1,11 +1,13 @@
 package websocketclient
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/ChopstickLeg/Discord-Bot-Practice/src/structs"
 	"github.com/gorilla/websocket"
 )
 
@@ -99,6 +101,21 @@ func (ws *WebsocketClient) AttemptReconnect() {
 
 	ws.Close()
 
+	message := structs.Message{
+		Op: 6,
+		D: map[string]interface{}{
+			"token":      ws.token,
+			"session_id": ws.SessionId,
+			"seq":        ws.SequenceNum,
+		},
+	}
+
+	sendMessageJSON, err := json.Marshal(message)
+	if err != nil {
+		fmt.Println("Error marshalling Resume message")
+		return
+	}
+
 	for ws.retryCount < ws.maxRetries {
 		delay := time.Duration((ws.reconnectDelay) * (1 << ws.retryCount))
 		if delay > ws.maxDelay {
@@ -111,6 +128,7 @@ func (ws *WebsocketClient) AttemptReconnect() {
 		ws.Connect(ws.ReconnectURL)
 		if ws.Connection != nil {
 			fmt.Println("Reconnect sucessful")
+			ws.SendMessage(sendMessageJSON)
 			return
 		}
 	}

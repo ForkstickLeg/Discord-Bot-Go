@@ -82,7 +82,6 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 				fmt.Println("Error sending message: ", err)
 				return
 			}
-			fmt.Println("Heartbeat message sent")
 		}()
 	case 1:
 		//Heartbeat message, requires immediate heartbeat return
@@ -100,7 +99,6 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			return
 		}
 	case 11:
-		fmt.Println("Heartbeat ACK received")
 		sendMessage := structs.Message{
 			Op: 1,
 			D:  &ws.SequenceNum,
@@ -117,7 +115,6 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 				fmt.Println("Error sending message: ", err)
 				return
 			}
-			fmt.Println("Heartbeat message sent")
 		}()
 	case 7:
 		ws.AttemptReconnect()
@@ -250,6 +247,7 @@ func silence(memberId string, minutes int) {
 		fmt.Println("Error, cannot mute bot")
 	}
 	fmt.Println("User silenced", memberId, minutes)
+
 	//TODO: Get user object of user silenced, start seperate goroutine that server mutes the user, checks to see if they're unmuted
 	//then mutes them again if need be. Also delete any messages sent by the muted user
 }

@@ -3,11 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"strings"
 
+	discordapiclient "github.com/ChopstickLeg/Discord-Bot-Practice/src/discord-api-client"
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/structs"
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/websocketclient"
 	"github.com/joho/godotenv"
@@ -59,46 +57,6 @@ func main() {
 	select {}
 }
 
-func makeCall(apiUrl string, method string, key []string, value []string, body ...string) []byte {
-	var requestBody string
-	if len(body) > 0 {
-		requestBody = body[0]
-	} else {
-		requestBody = "{}"
-	}
-	req, err := http.NewRequest(method, apiUrl, strings.NewReader(requestBody))
-	if err != nil {
-		fmt.Println("Error creating request")
-		os.Exit(1)
-	}
-
-	for i := 0; i < len(key); i++ {
-		req.Header.Add(key[i], value[i])
-	}
-
-	client := &http.Client{}
-	response, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Error:", err)
-		cleanupAndExit(response)
-	}
-	defer response.Body.Close()
-
-	output, err := io.ReadAll(response.Body)
-	if err != nil {
-		fmt.Println("Error:", err)
-		os.Exit(1)
-	}
-	return output
-}
-
-func cleanupAndExit(response *http.Response) {
-	if response != nil {
-		response.Body.Close()
-	}
-	os.Exit(1)
-}
-
 func setupCommand(name string, description string, options *structs.Command, commandType ...int) structs.Command {
 	var data structs.Command
 	key := []string{"Content-Type", "Authorization"}
@@ -129,17 +87,14 @@ func setupCommand(name string, description string, options *structs.Command, com
 			Options:     []structs.Command{*options},
 		}
 	}
+	ac := discordapiclient.NewApiCall("https://discord.com/api/v10/applications/" + clientid + "/commands")
+	ac.AddHeader(key, value)
+	ac.AddBody(data)
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
-		os.Exit(1)
-	}
-
-	commands := makeCall("https://discord.com/api/v10/applications/"+clientid+"/commands", "POST", key, value, string(jsonData))
+	commands := ac.MakePostCall()
 
 	var output structs.Command
-	err = json.Unmarshal(commands, &output)
+	err := json.Unmarshal(commands, &output)
 	if err != nil {
 		fmt.Println("Error unmarshalling response")
 	}
@@ -150,7 +105,10 @@ func getWSUrl() string {
 	key := []string{"Content-Type", "Authorization"}
 	value := []string{"application/json", "Bot " + botToken}
 
-	body := makeCall("https://discord.com/api/v10/gateway", "GET", key, value)
+	ac := discordapiclient.NewApiCall("https://discord.com/api/v10/gateway")
+	ac.AddHeader(key, value)
+
+	body := ac.MakeGetCall()
 
 	var output structs.GatewayResponse
 	err := json.Unmarshal(body, &output)
