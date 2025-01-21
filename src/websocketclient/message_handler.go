@@ -161,6 +161,9 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 		} else {
 			fmt.Println("Invalid session error")
 			ws.Close()
+			ws.SessionId = ""
+			ws.SequenceNum = 0
+			ws.ReconnectURL = ""
 			ws.Connect(ws.URL)
 		}
 	}
