@@ -1,0 +1,252 @@
+package websocketclient
+
+import (
+	"encoding/json"
+	"fmt"
+	"runtime"
+	"time"
+
+	"github.com/ChopstickLeg/Discord-Bot-Practice/src/structs"
+	"golang.org/x/exp/rand"
+)
+
+var intents int = 1<<0 | 1<<1 | 1<<9 | 1<<15
+
+func (ws *WebsocketClient) HandleMessage(message []byte) {
+	var msg structs.Message
+	err := json.Unmarshal(message, &msg)
+	if err != nil {
+		fmt.Println("Error unmarshalling message")
+	}
+	switch msg.Op {
+	case 10:
+		//Hello message
+		var data structs.HelloMessageData
+		rawData, ok := msg.D.(map[string]interface{})
+		if !ok {
+			fmt.Println("Error asserting baseMsg.D to map[string]interface{}")
+			return
+		}
+		rawDataBytes, err := json.Marshal(rawData)
+		if err != nil {
+			fmt.Println("Error marshalling rawData to bytes: ", err)
+			return
+		}
+		err = json.Unmarshal(rawDataBytes, &data)
+		if err != nil {
+			fmt.Println("Error unmarshalling message: ", err)
+			fmt.Println("Message: ", message)
+			return
+		}
+		if len(ws.SessionId) == 0 {
+			sendIdentifyMessage := structs.Message{
+				Op: 2,
+				D: structs.IdentifyMessageData{
+					Token: ws.token,
+					Properties: structs.Props{
+						Os:      runtime.GOOS,
+						Browser: "CSL's Discord App",
+						Device:  "CSL's Discord App",
+					},
+					Intents: intents,
+				},
+			}
+			sendMessageJSON, err := json.Marshal(sendIdentifyMessage)
+			if err != nil {
+				fmt.Println("Error marshalling message: ", err)
+				return
+			}
+			err = ws.SendMessage(sendMessageJSON)
+			if err != nil {
+				fmt.Println("Error sending message: ", err)
+				return
+			}
+			fmt.Println("Identify message sent")
+		}
+		ws.HeartbeatInterval = data.HeartbeatInterval
+		randomSleep := rand.Intn(ws.HeartbeatInterval)
+		sendMessage := structs.Message{
+			Op: 1,
+			D:  &ws.SequenceNum,
+		}
+		sendMessageJSON, err := json.Marshal(sendMessage)
+		if err != nil {
+			fmt.Println("Error marshalling message: ", err)
+			return
+		}
+		go func() {
+			time.Sleep(time.Duration(randomSleep) * time.Millisecond)
+
+			err = ws.SendMessage(sendMessageJSON)
+			if err != nil {
+				fmt.Println("Error sending message: ", err)
+				return
+			}
+			fmt.Println("Heartbeat message sent")
+		}()
+	case 1:
+		//Heartbeat message, requires immediate heartbeat return
+		sendMessage := structs.Message{
+			Op: 1,
+		}
+		sendMessageJSON, err := json.Marshal(sendMessage)
+		if err != nil {
+			fmt.Println("Error marshalling message: ", err)
+			return
+		}
+		err = ws.SendMessage(sendMessageJSON)
+		if err != nil {
+			fmt.Println("Error sending message: ", err)
+			return
+		}
+	case 11:
+		fmt.Println("Heartbeat ACK received")
+		sendMessage := structs.Message{
+			Op: 1,
+			D:  &ws.SequenceNum,
+		}
+		sendMessageJSON, err := json.Marshal(sendMessage)
+		if err != nil {
+			fmt.Println("Error marshalling message: ", err)
+			return
+		}
+		go func() {
+			time.Sleep(time.Duration(ws.HeartbeatInterval) * time.Millisecond)
+			err = ws.SendMessage(sendMessageJSON)
+			if err != nil {
+				fmt.Println("Error sending message: ", err)
+				return
+			}
+			fmt.Println("Heartbeat message sent")
+		}()
+	case 7:
+		ws.AttemptReconnect()
+	case 0:
+		//This is where the payload will come from
+		ws.SequenceNum = *msg.S
+		switch *msg.T {
+		case "READY":
+			var data structs.ReadyPayload
+			rawData, ok := msg.D.(map[string]interface{})
+			if !ok {
+				fmt.Println("Error asserting baseMsg.D to map[string]interface{}")
+				return
+			}
+			rawDataBytes, err := json.Marshal(rawData)
+			if err != nil {
+				fmt.Println("Error marshalling rawData to bytes: ", err)
+				return
+			}
+			err = json.Unmarshal(rawDataBytes, &data)
+			if err != nil {
+				fmt.Println("Error unmarshalling message: ", err)
+				fmt.Println("Message: ", message)
+				return
+			}
+			ws.SequenceNum = *msg.S
+			ws.SessionId = data.SessionId
+			ws.ReconnectURL = data.ResumeGatewayURL + "/?v=10&encoding=json"
+		case "INTERACTION_CREATE":
+			handleInteraction(msg)
+		case "RESUMED":
+			fmt.Println("Session Resumed")
+		case "GUILD_CREATE":
+			fmt.Println("Joined guild")
+		default:
+			fmt.Println("unknown message received\n" + string(message))
+		}
+	case 9:
+		if msg.D == "true" {
+			ws.AttemptReconnect()
+		} else {
+			fmt.Println("Invalid session error")
+			ws.Close()
+			ws.Connect(ws.URL)
+		}
+	}
+}
+
+func handleInteraction(message structs.Message) {
+	var interaction structs.Interaction
+	rawData, ok := message.D.(map[string]interface{})
+	if !ok {
+		fmt.Println("Error asserting baseMsg.D to map[string]interface{}")
+		return
+	}
+	rawDataBytes, err := json.Marshal(rawData)
+	if err != nil {
+		fmt.Println("Error marshalling rawData to bytes: ", err)
+		return
+	}
+	err = json.Unmarshal(rawDataBytes, &interaction)
+	if err != nil {
+		fmt.Println("Error unmarshalling message: ", err)
+		fmt.Println("Message: ", message)
+		return
+	}
+	var data structs.InteractionData
+	rawData, ok = interaction.Data.(map[string]interface{})
+	if !ok {
+		fmt.Println("Error asserting interaction to map[string]interface{}")
+		return
+	}
+	rawDataBytes, err = json.Marshal(rawData)
+	if err != nil {
+		fmt.Println("Error marshalling rawData to bytes: ", err)
+		return
+	}
+	err = json.Unmarshal(rawDataBytes, &data)
+	if err != nil {
+		fmt.Println("Error unmarshalling message: ", err)
+		fmt.Println("Message: ", message)
+		return
+	}
+
+	switch data.Name {
+	case "silence":
+		var subCommandOptions []structs.InteractionData
+		rawData, ok := data.Options.([]interface{})
+		if !ok {
+			fmt.Println("Error asserting interaction to map[string]interface{}")
+			return
+		}
+		rawDataBytes, err = json.Marshal(rawData)
+		if err != nil {
+			fmt.Println("Error marshalling rawData to bytes: ", err)
+			return
+		}
+		err = json.Unmarshal(rawDataBytes, &subCommandOptions)
+		if err != nil {
+			fmt.Println("Error unmarshalling message: ", err)
+			fmt.Println("Message: ", message)
+			return
+		}
+		var options []structs.InteractionDataOptions
+		rawData, ok = subCommandOptions[0].Options.([]interface{})
+		if !ok {
+			fmt.Println("Error asserting interaction to []interface{}")
+			return
+		}
+		rawDataBytes, err = json.Marshal(rawData)
+		if err != nil {
+			fmt.Println("Error marshalling rawData to bytes: ", err)
+			return
+		}
+		err = json.Unmarshal(rawDataBytes, &options)
+		if err != nil {
+			fmt.Println("Error unmarshalling message: ", err)
+			fmt.Println("Message: ", message)
+			return
+		}
+		silence(options[0].Value.(string), int(options[1].Value.(float64)))
+	}
+}
+
+func silence(memberId string, minutes int) {
+	if memberId == "1326247335692341318" {
+		fmt.Println("Error, cannot mute bot")
+	}
+	fmt.Println("User silenced", memberId, minutes)
+	//TODO: Get user object of user silenced, start seperate goroutine that server mutes the user, checks to see if they're unmuted
+	//then mutes them again if need be. Also delete any messages sent by the muted user
+}
