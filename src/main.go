@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
 	discordapiclient "github.com/ChopstickLeg/Discord-Bot-Practice/src/discord-api-client"
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/structs"
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/websocketclient"
@@ -20,6 +21,9 @@ func main() {
 		fmt.Println("Error loading .env file")
 		return
 	}
+
+	db := database.CreateDB("discordbot")
+	defer db.Close()
 
 	clientid = os.Getenv("APP_ID")
 	botToken = os.Getenv("BOT_TOKEN")

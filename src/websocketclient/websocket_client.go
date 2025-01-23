@@ -66,8 +66,26 @@ func (ws *WebsocketClient) ReadMessage() {
 	for {
 		_, message, err := ws.Connection.ReadMessage()
 		if err != nil {
-			fmt.Println("Error reading message: ", err)
-			ws.AttemptReconnect()
+			if closeErr, ok := err.(*websocket.CloseError); ok {
+				fmt.Printf("WebSocket closed. Code: %d, Reason: %s\n", closeErr.Code, closeErr.Text)
+
+				switch closeErr.Code {
+				case websocket.CloseNormalClosure:
+					fmt.Println("Normal closure")
+					ws.AttemptReconnect()
+				case websocket.CloseAbnormalClosure:
+					fmt.Println("Abnormal closure")
+					ws.AttemptReconnect()
+				case 4009:
+					fmt.Println("Session timeout. You need to reconnect.")
+					ws.Close()
+					ws.Connect(ws.URL)
+				default:
+					fmt.Printf("Unhandled close code: %d\n", closeErr.Code)
+				}
+			} else {
+				fmt.Printf("Error reading WebSocket message: %v", err)
+			}
 			break
 		}
 		ws.HandleMessage(message)
@@ -104,13 +122,14 @@ func (ws *WebsocketClient) AttemptReconnect() {
 	message := structs.Message{
 		Op: 6,
 		D: map[string]interface{}{
-			"token":      ws.token,
+			"token":      "Bot " + ws.token,
 			"session_id": ws.SessionId,
 			"seq":        ws.SequenceNum,
 		},
 	}
 
 	sendMessageJSON, err := json.Marshal(message)
+	fmt.Println(string(sendMessageJSON))
 	if err != nil {
 		fmt.Println("Error marshalling Resume message")
 		return

@@ -1,5 +1,7 @@
 package structs
 
+var silenced_users []string
+
 type GatewayResponse struct {
 	URL string `json:"url"`
 }
@@ -42,9 +44,15 @@ type Command struct {
 	Value       string    `json:"value,omitempty"`
 }
 
+type Author struct {
+	Username string `json:"username"`
+	Id       string `json:"id"`
+}
+
 type Interaction struct {
-	Data  interface{} `json:"data"`
-	Token string      `json:"token"`
+	Data    interface{} `json:"data"`
+	Token   string      `json:"token"`
+	GuildId string      `json:"guild_id"`
 }
 
 type InteractionData struct {
@@ -62,4 +70,9 @@ type User struct {
 	Id            string `json:"id,omitempty"`
 	Username      string `json:"username"`
 	Discriminator string `json:"discriminator"`
+}
+
+type GuildMember struct {
+	User User `json:"user,omitempty"`
+	Mute bool `json:"mute"`
 }

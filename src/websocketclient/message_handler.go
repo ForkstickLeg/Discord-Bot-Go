@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
+	"github.com/ChopstickLeg/Discord-Bot-Practice/src/silence"
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/structs"
 	"golang.org/x/exp/rand"
 )
@@ -149,6 +151,8 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			fmt.Println("Session Resumed")
 		case "GUILD_CREATE":
 			fmt.Println("Joined guild")
+		case "MESSAGE_CREATE":
+			handleDiscordMessage(msg)
 		default:
 			fmt.Println("unknown message received\n" + string(message))
 		}
@@ -164,6 +168,30 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			ws.Connect(ws.URL)
 		}
 	}
+}
+
+func handleDiscordMessage(msg structs.Message) {
+	db := database.GetDB()
+	fmt.Println("Message received:")
+	var author structs.Author
+	rawData, ok := msg.D.(map[string]interface{})
+	if !ok {
+		fmt.Println("Error asserting message to map[string]interface{}")
+		return
+	}
+	rawDataBytes, err := json.Marshal(rawData)
+	if err != nil {
+		fmt.Println("Error marshalling raw data")
+		return
+	}
+	err = json.Unmarshal(rawDataBytes, &author)
+	if err != nil {
+		fmt.Println("Error unmarshalling to Author")
+	}
+	fmt.Println(author.Id)
+
+	db.DeleteOldSilences()
+	db.IsUserSilenced(author.Id)
 }
 
 func handleInteraction(message structs.Message) {
@@ -238,16 +266,18 @@ func handleInteraction(message structs.Message) {
 			fmt.Println("Message: ", message)
 			return
 		}
-		silence(options[0].Value.(string), int(options[1].Value.(float64)))
+		mute(options[0].Value.(string), int(options[1].Value.(float64)), interaction.GuildId)
 	}
 }
 
-func silence(memberId string, minutes int) {
+func mute(memberId string, minutes int, guildId string) {
 	if memberId == "1326247335692341318" {
 		fmt.Println("Error, cannot mute bot")
+		return
 	}
+	s := silence.NewSilence(memberId, minutes, guildId)
+	s.SilenceUser()
 	fmt.Println("User silenced", memberId, minutes)
-
 	//TODO: Get user object of user silenced, start seperate goroutine that server mutes the user, checks to see if they're unmuted
 	//then mutes them again if need be. Also delete any messages sent by the muted user
 }
