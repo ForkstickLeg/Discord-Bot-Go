@@ -68,11 +68,11 @@ type InteractionDataOptions struct {
 
 type User struct {
 	Id            string `json:"id,omitempty"`
-	Username      string `json:"username"`
-	Discriminator string `json:"discriminator"`
+	Username      string `json:"username,omitempty"`
+	Discriminator string `json:"discriminator,omitempty"`
 }
 
 type GuildMember struct {
-	User User `json:"user,omitempty"`
-	Mute bool `json:"mute"`
+	User *User `json:"user,omitempty"`
+	Mute bool  `json:"mute"`
 }

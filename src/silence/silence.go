@@ -57,7 +57,7 @@ func (s *Silence) SilenceUser() {
 
 func checkUserStatus(id string, guildId string) {
 	user := getUserObj(id, guildId)
-	if user.Mute != true {
+	if !user.Mute {
 		key := []string{"Content-Type", "Authorization"}
 		value := []string{"application/json", "Bot " + os.Getenv("BOT_TOKEN")}
 		ac := discordapiclient.NewApiCall("https://discord.com/api/v10/guilds/" + guildId + "/members/" + id)
@@ -65,11 +65,7 @@ func checkUserStatus(id string, guildId string) {
 		body := structs.GuildMember{
 			Mute: true,
 		}
-		JSONbody, err := json.Marshal(body)
-		if err != nil {
-			fmt.Println("Error marshalling body for mute call")
-		}
-		ac.AddBody(JSONbody)
+		ac.AddBody(body)
 		ac.MakePatchCall()
 	}
 }
