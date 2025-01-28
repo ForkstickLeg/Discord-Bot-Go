@@ -1,13 +1,13 @@
 package websocketclient
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
-	"github.com/ChopstickLeg/Discord-Bot-Practice/src/structs"
 	"github.com/gorilla/websocket"
 )
 
@@ -25,6 +25,8 @@ type WebsocketClient struct {
 	maxRetries        int
 	reconnectDelay    time.Duration
 	maxDelay          time.Duration
+	ctx               context.Context
+	cancel            context.CancelFunc
 }
 
 func NewWebsocketClient(url string) *WebsocketClient {
@@ -42,6 +44,14 @@ func NewWebsocketClient(url string) *WebsocketClient {
 func (ws *WebsocketClient) Connect(url string) {
 	ws.mutex.Lock()
 	defer ws.mutex.Unlock()
+
+	if ws.cancel != nil {
+		ws.cancel()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ws.ctx = ctx
+	ws.cancel = cancel
 
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
@@ -64,31 +74,46 @@ func (ws *WebsocketClient) Connect(url string) {
 func (ws *WebsocketClient) ReadMessage() {
 	fmt.Println("Reading")
 	for {
-		_, message, err := ws.Connection.ReadMessage()
-		if err != nil {
-			if closeErr, ok := err.(*websocket.CloseError); ok {
-				fmt.Printf("WebSocket closed. Code: %d, Reason: %s\n", closeErr.Code, closeErr.Text)
-
-				switch closeErr.Code {
-				case websocket.CloseNormalClosure:
-					fmt.Println("Normal closure")
-					ws.AttemptReconnect()
-				case websocket.CloseAbnormalClosure:
-					fmt.Println("Abnormal closure")
-					ws.AttemptReconnect()
-				case 4009:
-					fmt.Println("Session timeout. You need to reconnect.")
-					ws.Close()
-					ws.Connect(ws.URL)
-				default:
-					fmt.Printf("Unhandled close code: %d\n", closeErr.Code)
-				}
+		select {
+		case <-ws.ctx.Done():
+			fmt.Println("Stopping read message loop")
+			return
+		default:
+			ws.mutex.Lock()
+			conn := ws.Connection
+			ws.mutex.Unlock()
+			if conn == nil {
+				fmt.Println("Websocket is nil, stopping read")
+				return
 			} else {
-				fmt.Printf("Error reading WebSocket message: %v", err)
+				_, message, err := conn.ReadMessage()
+				if err != nil {
+					if closeErr, ok := err.(*websocket.CloseError); ok {
+						fmt.Printf("WebSocket closed. Code: %d, Reason: %s\n", closeErr.Code, closeErr.Text)
+
+						switch closeErr.Code {
+						case websocket.CloseNormalClosure:
+							fmt.Println("Normal closure")
+							ws.AttemptReconnect()
+						case websocket.CloseAbnormalClosure:
+							fmt.Println("Abnormal closure")
+							ws.AttemptReconnect()
+						case 4009:
+							fmt.Println("Session timeout. You need to reconnect.")
+							ws.Close()
+							ws.Connect(ws.URL)
+						default:
+							fmt.Printf("Unhandled close code: %d\n", closeErr.Code)
+						}
+					} else {
+						fmt.Printf("Error reading WebSocket message: %v\n", err)
+					}
+					break
+				}
+				ws.HandleMessage(message)
 			}
-			break
+
 		}
-		ws.HandleMessage(message)
 	}
 }
 
@@ -117,48 +142,51 @@ func (ws *WebsocketClient) AttemptReconnect() {
 	ws.reconnecting = true
 	defer func() { ws.reconnecting = false }()
 
-	ws.Close()
-
-	message := structs.Message{
-		Op: 6,
-		D: map[string]interface{}{
-			"token":      "Bot " + ws.token,
-			"session_id": ws.SessionId,
-			"seq":        ws.SequenceNum,
-		},
+	if ws.cancel != nil {
+		ws.cancel()
+		ws.Connection.SetReadDeadline(time.Now())
+		time.Sleep(5000 * time.Millisecond)
 	}
 
-	sendMessageJSON, err := json.Marshal(message)
-	fmt.Println(string(sendMessageJSON))
-	if err != nil {
-		fmt.Println("Error marshalling Resume message")
-		return
-	}
+	fmt.Printf("Active goroutines: %d\n", runtime.NumGoroutine())
+
+	ws.mutex.Lock()
+	ws.Connection = nil
+	ws.mutex.Unlock()
 
 	for ws.retryCount < ws.maxRetries {
 		delay := time.Duration((ws.reconnectDelay) * (1 << ws.retryCount))
 		if delay > ws.maxDelay {
 			delay = ws.maxDelay
 		}
-		fmt.Printf("Reconnecting in %v", delay)
+		fmt.Printf("Reconnecting in %v\n", delay)
 		time.Sleep(delay)
 
 		ws.retryCount++
 		ws.Connect(ws.ReconnectURL)
 		if ws.Connection != nil {
-			fmt.Println("Reconnect sucessful")
-			ws.SendMessage(sendMessageJSON)
+			fmt.Println("Reconnect successful")
 			return
 		}
 	}
+
 	fmt.Println("Max retries reached, giving up")
+	ws.SessionId = ""
+	ws.SequenceNum = 0
+	ws.retryCount = 0
+	ws.Connect(ws.URL)
 }
 
 func (ws *WebsocketClient) Close() {
 	ws.mutex.Lock()
 	defer ws.mutex.Unlock()
 
+	if ws.cancel != nil {
+		ws.cancel()
+	}
+
 	if ws.Connection != nil {
+		ws.Connection.SetReadDeadline(time.Now())
 		ws.Connection.Close()
 		ws.Connection = nil
 		fmt.Println("Websocket connection closed")

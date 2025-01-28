@@ -55,15 +55,35 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			}
 			sendMessageJSON, err := json.Marshal(sendIdentifyMessage)
 			if err != nil {
-				fmt.Println("Error marshalling message: ", err)
+				fmt.Println("Error marshalling Identify message: ", err)
 				return
 			}
 			err = ws.SendMessage(sendMessageJSON)
 			if err != nil {
-				fmt.Println("Error sending message: ", err)
+				fmt.Println("Error sending Identify message: ", err)
 				return
 			}
 			fmt.Println("Identify message sent")
+		} else {
+			sendResumeMessage := structs.Message{
+				Op: 6,
+				D: map[string]interface{}{
+					"token":      "Bot " + ws.token,
+					"session_id": ws.SessionId,
+					"seq":        ws.SequenceNum,
+				},
+			}
+			sendMessageJSON, err := json.Marshal(sendResumeMessage)
+			if err != nil {
+				fmt.Println("Error marshalling Resume message: ", err)
+				return
+			}
+			err = ws.SendMessage(sendMessageJSON)
+			if err != nil {
+				fmt.Println("Error sending Resume message: ", err)
+				return
+			}
+			fmt.Println("Resume message sent")
 		}
 		ws.HeartbeatInterval = data.HeartbeatInterval
 		randomSleep := rand.Intn(ws.HeartbeatInterval)
@@ -77,12 +97,14 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			return
 		}
 		go func() {
-			time.Sleep(time.Duration(randomSleep) * time.Millisecond)
-
-			err = ws.SendMessage(sendMessageJSON)
-			if err != nil {
-				fmt.Println("Error sending message: ", err)
-				return
+			select {
+			case <-time.After(time.Duration(randomSleep) * time.Millisecond):
+				err := ws.SendMessage(sendMessageJSON)
+				if err != nil {
+					fmt.Println("Error sending message:", err)
+				}
+			case <-ws.ctx.Done():
+				fmt.Println("Cancelled delayed heartbeat send")
 			}
 		}()
 	case 1:
@@ -119,10 +141,12 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			}
 		}()
 	case 7:
+		fmt.Println("Reconnect request recieved")
 		ws.AttemptReconnect()
 	case 0:
 		//This is where the payload will come from
 		ws.SequenceNum = *msg.S
+		fmt.Println(ws.SequenceNum)
 		switch *msg.T {
 		case "READY":
 			var data structs.ReadyPayload
@@ -144,6 +168,7 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			}
 			ws.SequenceNum = *msg.S
 			ws.SessionId = data.SessionId
+			fmt.Println(string(ws.SessionId))
 			ws.ReconnectURL = data.ResumeGatewayURL + "/?v=10&encoding=json"
 		case "INTERACTION_CREATE":
 			handleInteraction(msg)
@@ -158,9 +183,10 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 		}
 	case 9:
 		if msg.D == "true" {
+			fmt.Println("Code 9 with d = true recieved, reconnecting")
 			ws.AttemptReconnect()
 		} else {
-			fmt.Println("Invalid session error")
+			fmt.Println("Session invalid, starting fresh...")
 			ws.Close()
 			ws.SessionId = ""
 			ws.SequenceNum = 0

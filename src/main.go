@@ -54,6 +54,8 @@ func main() {
 
 	gatewayURL := getWSUrl()
 
+	fmt.Println(gatewayURL)
+
 	client := websocketclient.NewWebsocketClient(gatewayURL)
 
 	client.Connect(gatewayURL)

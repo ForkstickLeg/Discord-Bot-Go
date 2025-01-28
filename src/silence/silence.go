@@ -48,6 +48,7 @@ func (s *Silence) SilenceUser() {
 	for {
 		select {
 		case <-time.After(timeout):
+
 			return
 		default:
 			checkUserStatus(s.userId, s.guildId)

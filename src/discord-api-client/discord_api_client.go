@@ -40,12 +40,7 @@ func (ac *ApiCall) AddBody(data interface{}) {
 }
 
 func (ac *ApiCall) MakePostCall() []byte {
-	jsonBody, err := json.Marshal(ac.body)
-	if err != nil {
-		fmt.Println("Error marshalling body")
-		return nil
-	}
-	req, err := http.NewRequest("POST", ac.ApiUrl, strings.NewReader(string(jsonBody)))
+	req, err := http.NewRequest("POST", ac.ApiUrl, strings.NewReader(string(ac.body)))
 	if err != nil {
 		fmt.Println("Error making POST request")
 		return nil
@@ -99,12 +94,7 @@ func (ac *ApiCall) MakeGetCall() []byte {
 }
 
 func (ac *ApiCall) MakePatchCall() []byte {
-	jsonBody, err := json.Marshal(ac.body)
-	if err != nil {
-		fmt.Println("Error marshalling body")
-		return nil
-	}
-	req, err := http.NewRequest("PATCH", ac.ApiUrl, strings.NewReader(string(jsonBody)))
+	req, err := http.NewRequest("PATCH", ac.ApiUrl, strings.NewReader(string(ac.body)))
 	if err != nil {
 		fmt.Println("Error making PATCH request")
 		return nil
