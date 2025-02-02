@@ -3,7 +3,6 @@ package websocketclient
 import (
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
@@ -39,51 +38,6 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			fmt.Println("Error unmarshalling message: ", err)
 			fmt.Println("Message: ", message)
 			return
-		}
-		if len(ws.SessionId) == 0 {
-			sendIdentifyMessage := structs.Message{
-				Op: 2,
-				D: structs.IdentifyMessageData{
-					Token: ws.token,
-					Properties: structs.Props{
-						Os:      runtime.GOOS,
-						Browser: "CSL's Discord App",
-						Device:  "CSL's Discord App",
-					},
-					Intents: intents,
-				},
-			}
-			sendMessageJSON, err := json.Marshal(sendIdentifyMessage)
-			if err != nil {
-				fmt.Println("Error marshalling Identify message: ", err)
-				return
-			}
-			err = ws.SendMessage(sendMessageJSON)
-			if err != nil {
-				fmt.Println("Error sending Identify message: ", err)
-				return
-			}
-			fmt.Println("Identify message sent")
-		} else {
-			sendResumeMessage := structs.Message{
-				Op: 6,
-				D: map[string]interface{}{
-					"token":      "Bot " + ws.token,
-					"session_id": ws.SessionId,
-					"seq":        ws.SequenceNum,
-				},
-			}
-			sendMessageJSON, err := json.Marshal(sendResumeMessage)
-			if err != nil {
-				fmt.Println("Error marshalling Resume message: ", err)
-				return
-			}
-			err = ws.SendMessage(sendMessageJSON)
-			if err != nil {
-				fmt.Println("Error sending Resume message: ", err)
-				return
-			}
-			fmt.Println("Resume message sent")
 		}
 		ws.HeartbeatInterval = data.HeartbeatInterval
 		randomSleep := rand.Intn(ws.HeartbeatInterval)
@@ -122,24 +76,24 @@ func (ws *WebsocketClient) HandleMessage(message []byte) {
 			fmt.Println("Error sending message: ", err)
 			return
 		}
-	case 11:
-		sendMessage := structs.Message{
-			Op: 1,
-			D:  &ws.SequenceNum,
-		}
-		sendMessageJSON, err := json.Marshal(sendMessage)
-		if err != nil {
-			fmt.Println("Error marshalling message: ", err)
-			return
-		}
-		go func() {
-			time.Sleep(time.Duration(ws.HeartbeatInterval) * time.Millisecond)
-			err = ws.SendMessage(sendMessageJSON)
-			if err != nil {
-				fmt.Println("Error sending message: ", err)
-				return
-			}
-		}()
+	// case 11:
+	// 	sendMessage := structs.Message{
+	// 		Op: 1,
+	// 		D:  &ws.SequenceNum,
+	// 	}
+	// 	sendMessageJSON, err := json.Marshal(sendMessage)
+	// 	if err != nil {
+	// 		fmt.Println("Error marshalling message: ", err)
+	// 		return
+	// 	}
+	// 	go func() {
+	// 		time.Sleep(time.Duration(ws.HeartbeatInterval) * time.Millisecond)
+	// 		err = ws.SendMessage(sendMessageJSON)
+	// 		if err != nil {
+	// 			fmt.Println("Error sending message: ", err)
+	// 			return
+	// 		}
+	// 	}()
 	case 7:
 		fmt.Println("Reconnect request recieved")
 		ws.AttemptReconnect()
