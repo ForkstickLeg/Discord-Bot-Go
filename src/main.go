@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
 	discordapiclient "github.com/ChopstickLeg/Discord-Bot-Practice/src/discord-api-client"
@@ -24,9 +23,6 @@ func main() {
 
 	db := database.CreateDB("discordbot")
 	defer db.Close()
-
-	clientid = os.Getenv("APP_ID")
-	botToken = os.Getenv("BOT_TOKEN")
 
 	silenceOptions := structs.Command{
 		Name:        "user",
