@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Set up Go environment
         uses: actions/setup-go@v1
@@ -26,7 +28,7 @@ jobs:
 
       - name: Build the Go app
         run: |
-          cd $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE/src
           go build -o dist/discord-bot .
 
       - name: Deploy the application
