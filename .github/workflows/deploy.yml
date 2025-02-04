@@ -29,9 +29,9 @@ jobs:
       - name: Build the Go app
         run: |
           cd $GITHUB_WORKSPACE/src
-          go build -o dist/discord-bot .
+          go build -o ./discord-bot .
 
       - name: Deploy the application
         run: |
           echo "Deploying application..."
-          ./dist/discord-bot
+          ./discord-bot
