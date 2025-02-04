@@ -67,7 +67,12 @@ func (db *Database) InsertSilence(userId string, guildId string, minutes int) {
 
 	endTime := time.Now().Add(time.Duration(minutes) * time.Minute)
 
-	_, err = stmt.Exec(userId, guildId, endTime.Format("2006-01-02 15:04:05"))
+	res, err := stmt.Exec(userId, guildId, endTime.Format("2006-01-02 15:04:05"))
+	if err != nil {
+		fmt.Println("Error executing insert statement")
+	}
+
+	fmt.Println(res)
 }
 
 func (db *Database) DeleteOldSilences() {
@@ -80,7 +85,11 @@ func (db *Database) DeleteOldSilences() {
 
 	now := time.Now()
 
-	_, err = stmt.Exec(now.Format("2006-01-02 15:04:05"))
+	res, err := stmt.Exec(now.Format("2006-01-02 15:04:05"))
+	if err != nil {
+		fmt.Println("Error executing delete statement")
+	}
+	fmt.Println(res)
 }
 
 func (db *Database) IsUserSilenced(discordId string) bool {

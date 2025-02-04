@@ -3,13 +3,16 @@ package discordclient
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"strconv"
 
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
+	"github.com/ChopstickLeg/Discord-Bot-Practice/src/silence"
 	"github.com/bwmarrin/discordgo"
 )
 
 func SetupDiscord() {
-	//clientid := os.Getenv("APP_ID")
+	clientid := os.Getenv("APP_ID")
 	botToken := os.Getenv("BOT_TOKEN")
 
 	discord, err := discordgo.New("Bot " + botToken)
@@ -17,7 +20,28 @@ func SetupDiscord() {
 		fmt.Println("Error creating discordgo object")
 	}
 
-	registerCommands(discord)
+	var commands = []*discordgo.ApplicationCommand{
+		{
+			Name:        "silence",
+			Description: "Silence someone, including in voice and text for the specified amount of time (in minutes)",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Name:        "username",
+					Description: "User to silence",
+					Type:        6,
+					Required:    true,
+				},
+				{
+					Name:        "duration",
+					Description: "Length of silence (in minutes)",
+					Type:        4,
+					Required:    true,
+				},
+			},
+		},
+	}
+
+	discord.ApplicationCommandBulkOverwrite(clientid, "", commands)
 
 	discord.Identify.Intents = discordgo.IntentGuilds | discordgo.IntentGuildMembers | discordgo.IntentGuildMessages | discordgo.IntentMessageContent
 
@@ -25,10 +49,30 @@ func SetupDiscord() {
 
 	discord.AddHandler(messageCreate)
 
-}
+	discord.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if i.Type != discordgo.InteractionApplicationCommand {
+			return
+		}
 
-func registerCommands(s *discordgo.Session) {
+		data := i.ApplicationCommandData()
+		if data.Name == "silence" {
+			mute(data.Options[0].UserValue(s).ID, int(data.Options[1].IntValue()), i.GuildID, s, i)
+		}
+	})
 
+	err = discord.Open()
+	if err != nil {
+		fmt.Println("Error opening session")
+	}
+
+	sigch := make(chan os.Signal, 1)
+	signal.Notify(sigch, os.Interrupt)
+	<-sigch
+
+	err = discord.Close()
+	if err != nil {
+		fmt.Println("Error closing session")
+	}
 }
 
 func ready(s *discordgo.Session, event *discordgo.Ready) {
@@ -36,7 +80,40 @@ func ready(s *discordgo.Session, event *discordgo.Ready) {
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	fmt.Println("Message received, checking db")
 	db := database.GetDB()
 	db.DeleteOldSilences()
-	db.IsUserSilenced(m.Author.ID)
+	silenced := db.IsUserSilenced(m.Author.ID)
+	if silenced {
+		s.ChannelMessageDelete(m.ChannelID, m.Reference().MessageID)
+	}
+}
+
+func mute(memberId string, minutes int, guildId string, s *discordgo.Session, i *discordgo.InteractionCreate) {
+	user, err := s.User(memberId)
+	if err != nil {
+		fmt.Println("Error getting User object")
+	}
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: user.Mention() + " has been silenced for " + strconv.Itoa(minutes),
+			AllowedMentions: &discordgo.MessageAllowedMentions{
+				Parse: []discordgo.AllowedMentionType{
+					"users",
+				},
+			},
+		},
+	})
+	db := database.GetDB()
+	db.InsertSilence(memberId, guildId, minutes)
+	if memberId == "1326247335692341318" {
+		fmt.Println("Error, cannot mute bot")
+		return
+	}
+	sil := silence.NewSilence(memberId, minutes, guildId)
+	go sil.SilenceUser()
+	fmt.Println("User silenced", memberId, minutes)
+	//TODO: Get user object of user silenced, start seperate goroutine that server mutes the user, checks to see if they're unmuted
+	//then mutes them again if need be. Also delete any messages sent by the muted user
 }

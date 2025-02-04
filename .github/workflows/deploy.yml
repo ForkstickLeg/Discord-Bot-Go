@@ -1,0 +1,27 @@
+name: Deploy Go App
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: self-hosted # This specifies that the job will run on your self-hosted runner.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go environment
+        uses: actions/setup-go@v1
+        with:
+          go-version: "1.23.x"
+
+      - name: Build the Go app
+        run: |
+          mkdir -p dist
+          go build -o dist/discord-bot .
+
+      - name: Deploy the application
+        run: |
+          echo "Deploying application..."
+          ./dist/discord-bot
