@@ -16,6 +16,7 @@ jobs:
 
       - name: Stop and Remove Existing Containers (if any)
         run: |
+          whoami
           docker-compose down || true
 
       - name: Pull Latest Image (For Caching)
