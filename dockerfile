@@ -1,5 +1,5 @@
 # Stage 1: Build the Go binary
-FROM golang:1.21 AS builder
+FROM golang:1.23.4 AS builder
 WORKDIR /app
 
 # Copy Go dependencies

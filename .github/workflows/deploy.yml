@@ -16,13 +16,12 @@ jobs:
 
       - name: Stop and Remove Existing Containers (if any)
         run: |
-          whoami
           docker-compose down || true
 
       - name: Pull Latest Image (For Caching)
         run: docker pull my_go_app:latest || true
 
-      - name: Create .env File (If Using GitHub Secrets)
+      - name: Create .env File
         run: |
           echo "DB_PATH=/app/data/discordbot.db" > .env
           echo "APP_ENV=docker" >> .env
