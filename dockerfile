@@ -1,34 +1,37 @@
 # Stage 1: Build the Go binary
 FROM golang:1.23.4 AS builder
-WORKDIR /
+WORKDIR /app
+
+# Set Go environment variables
+ENV GOPATH=/go
+ENV GO111MODULE=on
 
 # Copy Go dependencies
 COPY go.mod go.sum ./
 RUN go mod tidy
 
-# Copy source code
-COPY ./src/ ./
-WORKDIR /src
+# Copy source code correctly (since src/ is removed)
+COPY . ./
 
 # Build Go binary
 RUN CGO_ENABLED=0 go build -o myapp .
 
 # Stage 2: Run the built binary in a minimal image
 FROM alpine:latest
-WORKDIR /src
+WORKDIR /app
 
 # Install SQLite (if needed)
 RUN apk add --no-cache sqlite
 
 # Copy the built binary
-COPY --from=builder /src/myapp /app/myapp
+COPY --from=builder /app/myapp /app/myapp
 
 # Copy the database file (if it exists)
-COPY --from=builder /src/discordbot.db /src/discordbot.db
+COPY --from=builder /app/discordbot.db /app/discordbot.db
 
 # Set environment variable defaults
-ENV DB_PATH=/app/data/discordbot.db
-ENV APP_ENV=docker
+ENV DB_PATH=/app/discordbot.db
+ENV APP_ENV=production
 
 # Run the app
 CMD ["./myapp"]
