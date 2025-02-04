@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
-	"github.com/ChopstickLeg/Discord-Bot-Practice/src/silence"
+	"github.com/ChopstickLeg/Discord-Bot-Practice/database"
+	"github.com/ChopstickLeg/Discord-Bot-Practice/silence"
 	"github.com/bwmarrin/discordgo"
 )
 

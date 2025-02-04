@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	discordapiclient "github.com/ChopstickLeg/Discord-Bot-Practice/src/discord-api-client"
-	"github.com/ChopstickLeg/Discord-Bot-Practice/src/structs"
+	discordapiclient "github.com/ChopstickLeg/Discord-Bot-Practice/discord-api-client"
+	"github.com/ChopstickLeg/Discord-Bot-Practice/structs"
 )
 
 type Silence struct {

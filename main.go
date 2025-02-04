@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
-	"github.com/ChopstickLeg/Discord-Bot-Practice/src/discordclient"
+	"github.com/ChopstickLeg/Discord-Bot-Practice/database"
+	"github.com/ChopstickLeg/Discord-Bot-Practice/discordclient"
 	"github.com/joho/godotenv"
 )
 
 func main() {
 	if isRunningLocally() {
-		err := godotenv.Load("../.env")
+		err := godotenv.Load("./.env")
 		if err != nil {
 			fmt.Println("Error loading env files")
 		}
