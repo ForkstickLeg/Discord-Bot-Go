@@ -11,7 +11,7 @@ COPY src/ ./src/
 WORKDIR /app/src
 
 # Build Go binary
-RUN CGO_ENABLED=0 go build -o myapp main.go
+RUN CGO_ENABLED=0 go build -o myapp ./src/main.go
 
 # Stage 2: Run the built binary in a minimal image
 FROM alpine:latest
