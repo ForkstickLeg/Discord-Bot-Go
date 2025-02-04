@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           clean: true
-          path: /home/services/Discord-Bot-Practice/src
+          path: /home/chopstickleg/actions-runner/_work/Discord-Bot-Practice
 
       - name: Set up Go environment
         uses: actions/setup-go@v1
