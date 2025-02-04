@@ -19,6 +19,11 @@ jobs:
         with:
           go-version: 1.23.x
 
+      - name: Check workspace contents
+        run: |
+          echo "Current Directory: $GITHUB_WORKSPACE"
+          ls -lah $GITHUB_WORKSPACE
+
       - name: Build the Go app
         run: |
           cd $GITHUB_WORKSPACE
