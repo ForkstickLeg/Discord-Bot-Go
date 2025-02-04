@@ -21,7 +21,7 @@ jobs:
 
       - name: Build the Go app
         run: |
-          cd $GITHUB_WORKSPACE # If your files are in a subdirectory
+          cd $GITHUB_WORKSPACE
           go build -o dist/discord-bot .
 
       - name: Deploy the application
