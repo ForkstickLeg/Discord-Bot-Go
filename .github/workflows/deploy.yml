@@ -12,16 +12,16 @@ jobs:
       CLIENT_SECRET: ${{ secrets.BOT_TOKEN }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Go environment
         uses: actions/setup-go@v1
         with:
-          go-version: "1.23.x"
+          go-version: 1.23.x
 
       - name: Build the Go app
         run: |
-          mkdir -p dist
+          cd $GITHUB_WORKSPACE/Discord-Bot-Practice  # If your files are in a subdirectory
           go build -o dist/discord-bot .
 
       - name: Deploy the application
