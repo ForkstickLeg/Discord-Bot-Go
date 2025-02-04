@@ -25,4 +25,6 @@ jobs:
 
       - name: Deploy the application
         run: |
+          cd $GITHUB_WORKSPACE/src
+          go build ./discord-bot .
           systemctl start discord-bot.service
