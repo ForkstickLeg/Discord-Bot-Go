@@ -25,7 +25,8 @@ jobs:
 
       - name: Deploy the application
         run: |
+          npm install -g pm2
           echo "Deploying application..."
           cd $GITHUB_WORKSPACE/src
           go build -o ./discord-bot .
-          ./discord-bot
+          #pm2 start $GITHUB_WORKSPACE/src/discord-bot --startfile
