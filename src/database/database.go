@@ -17,7 +17,7 @@ type Database struct {
 var db Database
 
 func CreateDB(name string) *Database {
-	conn, err := sql.Open("sqlite", "./"+name+".db")
+	conn, err := sql.Open("sqlite", name)
 	if err != nil {
 		fmt.Printf("Error opening database: %v", err)
 	}

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/ChopstickLeg/Discord-Bot-Practice/src/database"
@@ -10,12 +10,21 @@ import (
 )
 
 func main() {
-	godotenv.Load()
-	App_id := os.Getenv("APP_ID")
-	log.Println(App_id)
+	if isRunningLocally() {
+		err := godotenv.Load("../.env")
+		if err != nil {
+			fmt.Println("Error loading env files")
+		}
+		fmt.Println("Running locally, .env loaded.")
+	}
 
-	db := database.CreateDB("discordbot")
+	db := database.CreateDB(os.Getenv("DB_PATH"))
 	defer db.Close()
 
 	discordclient.SetupDiscord()
+}
+
+func isRunningLocally() bool {
+	env := os.Getenv("APP_ENV")
+	return env == "" || env == "local"
 }

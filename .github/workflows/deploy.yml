@@ -1,30 +1,35 @@
-name: Deploy Go App
+name: Deploy Go App in Docker
 
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: self-hosted
+
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          clean: true
 
-      - name: Set up Go environment
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.23.x
-
-      - name: Create .env file
+      - name: Stop and Remove Existing Containers (if any)
         run: |
-          echo "APP_ID=${{ secrets.APP_ID }}" > $GITHUB_WORKSPACE/.env
-          echo "CLIENT_SECRET=${{ secrets.BOT_TOKEN }}" >> $GITHUB_WORKSPACE/.env
+          docker-compose down || true
 
-      - name: Deploy the application
+      - name: Pull Latest Image (For Caching)
+        run: docker pull my_go_app:latest || true
+
+      - name: Create .env File (If Using GitHub Secrets)
         run: |
-          cd $GITHUB_WORKSPACE/src
-          go build -o ./discord-bot .
-          systemctl start discord-bot.service
+          echo "DB_PATH=/app/data/discordbot.db" > .env
+          echo "APP_ENV=docker" >> .env
+          echo "APP_ID=${{ secrets.APP_ID }}" >> .env
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env
+
+      - name: Build and Start Services
+        run: docker-compose up -d --build
+
+      - name: Verify Running Containers
+        run: docker ps

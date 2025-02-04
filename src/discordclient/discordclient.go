@@ -39,6 +39,10 @@ func SetupDiscord() {
 				},
 			},
 		},
+		{
+			Name:        "source",
+			Description: "Provides a link to my source code on GitHub",
+		},
 	}
 
 	discord.ApplicationCommandBulkOverwrite(clientid, "", commands)
@@ -114,6 +118,4 @@ func mute(memberId string, minutes int, guildId string, s *discordgo.Session, i 
 	sil := silence.NewSilence(memberId, minutes, guildId)
 	go sil.SilenceUser()
 	fmt.Println("User silenced", memberId, minutes)
-	//TODO: Get user object of user silenced, start seperate goroutine that server mutes the user, checks to see if they're unmuted
-	//then mutes them again if need be. Also delete any messages sent by the muted user
 }
