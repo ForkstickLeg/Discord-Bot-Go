@@ -1,6 +1,6 @@
 # Stage 1: Build the Go binary
 FROM golang:1.23.4 AS builder
-WORKDIR /app
+WORKDIR /src
 
 # Copy Go dependencies
 COPY go.mod go.sum ./
