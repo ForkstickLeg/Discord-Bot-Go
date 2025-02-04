@@ -7,9 +7,5 @@ services:
       dockerfile: Dockerfile
     container_name: my_go_app
     restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./src/discordbot.db:/app/data/discordbot.db
     env_file:
       - .env 
