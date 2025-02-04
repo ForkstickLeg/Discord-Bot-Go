@@ -8,10 +8,10 @@ RUN go mod tidy
 
 # Copy source code
 COPY src/ ./src/
-WORKDIR /app/src
+WORKDIR /src
 
 # Build Go binary
-RUN CGO_ENABLED=0 go build -o myapp ./src/main.go
+RUN CGO_ENABLED=0 go build -o myapp 
 
 # Stage 2: Run the built binary in a minimal image
 FROM alpine:latest
