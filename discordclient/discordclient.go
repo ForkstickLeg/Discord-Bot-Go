@@ -101,7 +101,7 @@ func mute(memberId string, minutes int, guildId string, s *discordgo.Session, i 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: user.Mention() + " has been silenced for " + strconv.Itoa(minutes),
+			Content: user.Mention() + " has been silenced for " + strconv.Itoa(minutes) + " minutes",
 			AllowedMentions: &discordgo.MessageAllowedMentions{
 				Parse: []discordgo.AllowedMentionType{
 					"users",
