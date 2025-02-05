@@ -16,7 +16,7 @@ jobs:
 
       - name: Stop and Remove Existing Containers (if any)
         run: |
-          docker-compose down --remove-orphans || true
+          docker-compose down && docker rm $(docker ps -a | grep my_go_app | awk '{print $1}')
 
       - name: Pull Latest Image (For Caching)
         run: docker pull my_go_app:latest || true
