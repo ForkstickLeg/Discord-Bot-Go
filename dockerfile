@@ -26,9 +26,5 @@ RUN apk add --no-cache sqlite
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
 
-# Set environment variable defaults
-ENV DB_PATH=./discordbot.db
-ENV APP_ENV=production
-
 # Run the app
 CMD ["./myapp"]
