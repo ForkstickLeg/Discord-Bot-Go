@@ -18,7 +18,7 @@ func main() {
 		fmt.Println("Running locally, .env loaded.")
 	}
 
-	db := database.CreateDB(os.Getenv("DB_PATH"))
+	db := database.CreateDB()
 	defer db.Close()
 
 	discordclient.SetupDiscord()
