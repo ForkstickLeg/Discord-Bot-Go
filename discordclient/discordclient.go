@@ -61,6 +61,13 @@ func SetupDiscord() {
 		data := i.ApplicationCommandData()
 		if data.Name == "silence" {
 			mute(data.Options[0].UserValue(s).ID, int(data.Options[1].IntValue()), i.GuildID, s, i)
+		} else if data.Name == "source" {
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Here is the link to the GitHub Repo with all of my code:\n[Link to GitHub](https://github.com/ChopstickLeg/Discord-Bot-Go)",
+				},
+			})
 		}
 	})
 
