@@ -10,7 +10,7 @@ ENV GO111MODULE=on
 COPY go.mod go.sum ./
 RUN go mod tidy
 
-# Copy source code correctly (since src/ is removed)
+# Copy source code
 COPY . ./
 
 # Build Go binary
