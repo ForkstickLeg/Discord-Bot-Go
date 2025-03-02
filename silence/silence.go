@@ -48,7 +48,7 @@ func (s *Silence) SilenceUser() {
 	for {
 		select {
 		case <-time.After(timeout):
-
+			unmuteUser(s.userId, s.guildId)
 			return
 		default:
 			checkUserStatus(s.userId, s.guildId)
@@ -65,6 +65,21 @@ func checkUserStatus(id string, guildId string) {
 		ac.AddHeader(key, value)
 		body := structs.GuildMember{
 			Mute: true,
+		}
+		ac.AddBody(body)
+		ac.MakePatchCall()
+	}
+}
+
+func unmuteUser(id string, guildId string) {
+	user := getUserObj(id, guildId)
+	if user.Mute {
+		key := []string{"Content-Type", "Authorization"}
+		value := []string{"application/json", "Bot " + os.Getenv("BOT_TOKEN")}
+		ac := discordapiclient.NewApiCall("https://discord.com/api/v10/guilds/" + guildId + "/members/" + id)
+		ac.AddHeader(key, value)
+		body := structs.GuildMember{
+			Mute: false,
 		}
 		ac.AddBody(body)
 		ac.MakePatchCall()

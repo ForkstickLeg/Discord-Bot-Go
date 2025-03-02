@@ -16,8 +16,8 @@ type Database struct {
 
 var db Database
 
-func CreateDB(name string) *Database {
-	conn, err := sql.Open("sqlite", name)
+func CreateDB() *Database {
+	conn, err := sql.Open("sqlite", "./discordbot.db")
 	if err != nil {
 		fmt.Printf("Error opening database: %v", err)
 	}
@@ -42,7 +42,7 @@ func CreateDB(name string) *Database {
 	fmt.Println("Table created or already exists")
 
 	db = Database{
-		Name:       name,
+		Name:       "discordbot",
 		tables:     []string{},
 		connection: conn,
 	}

@@ -10,7 +10,7 @@ ENV GO111MODULE=on
 COPY go.mod go.sum ./
 RUN go mod tidy
 
-# Copy source code correctly (since src/ is removed)
+# Copy source code
 COPY . ./
 
 # Build Go binary
@@ -25,10 +25,6 @@ RUN apk add --no-cache sqlite
 
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
-
-# Set environment variable defaults
-ENV DB_PATH=./discordbot.db
-ENV APP_ENV=production
 
 # Run the app
 CMD ["./myapp"]
