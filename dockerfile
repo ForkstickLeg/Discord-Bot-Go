@@ -23,8 +23,10 @@ WORKDIR /app
 # Install SQLite (if needed)
 RUN apk add --no-cache sqlite
 
+RUN 
+
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
 
 # Run the app
-CMD ["./myapp"]
+CMD echo "APP_ID: $APP_ID, BOT_TOKEN: $BOT_TOKEN" && ./myapp
