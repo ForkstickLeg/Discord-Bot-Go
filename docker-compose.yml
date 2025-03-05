@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   go_app:
@@ -7,5 +7,6 @@ services:
       dockerfile: Dockerfile
     container_name: my_go_app
     restart: unless-stopped
-    env_file:
-      - .env 
+    environment:
+      APP_ID: ${APP_ID}
+      BOT_TOKEN: ${BOT_TOKEN}

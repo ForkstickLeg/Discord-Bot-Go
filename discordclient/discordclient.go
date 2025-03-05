@@ -113,7 +113,7 @@ func mute(memberId string, minutes int, guildId string, s *discordgo.Session, i 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: user.Mention() + " has been silenced for " + strconv.Itoa(minutes) + " minutes\nRemember I cannot silence members in channels I cannot see, so please add me to all channels where you wish for me to quell the yapping",
+			Content: user.Mention() + " has been silenced for " + strconv.Itoa(minutes) + " minutes",
 			AllowedMentions: &discordgo.MessageAllowedMentions{
 				Parse: []discordgo.AllowedMentionType{
 					"users",
