@@ -17,11 +17,11 @@ COPY . ./
 RUN CGO_ENABLED=0 go build -o myapp .
 
 # Stage 2: Run the built binary in a minimal image
-FROM alpine:latest
+FROM debian:bookworm-slim
 WORKDIR /app
 
 # Install SQLite (if needed)
-RUN apk update && apk add --no-cache sqlite
+RUN apt update && apt install -y sqlite3
 
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
