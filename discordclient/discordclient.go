@@ -48,6 +48,7 @@ func SetupDiscord() {
 	_, err = discord.ApplicationCommandBulkOverwrite(clientid, "", commands)
 	if err != nil {
 		fmt.Println("Error registering commands, ", err)
+		fmt.Println("For debugging purposes, BOT_TOKEN: ", botToken)
 	}
 
 	discord.Identify.Intents = discordgo.IntentGuilds | discordgo.IntentGuildMembers | discordgo.IntentGuildMessages | discordgo.IntentMessageContent
