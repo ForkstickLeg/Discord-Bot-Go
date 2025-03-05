@@ -28,5 +28,13 @@ RUN
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
 
+# Create env file
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "APP_ID=$APP_ID" > /app/.env' >> /app/start.sh && \
+    echo 'echo "APP_ENV=$APP_ENV" > /app/.env' >> /app/start.sh && \
+    echo 'echo "BOT_TOKEN=$BOT_TOKEN" >> /app/.env' >> /app/start.sh && \
+    echo './myapp' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
 # Run the app
-CMD echo "APP_ID: $APP_ID, BOT_TOKEN: $BOT_TOKEN" && ./myapp
+CMD ["./myapp"]
