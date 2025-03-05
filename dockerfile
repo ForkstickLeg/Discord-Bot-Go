@@ -21,7 +21,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install SQLite (if needed)
-RUN apk add --no-cache sqlite
+RUN apk update && apk add --no-cache sqlite
 
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
