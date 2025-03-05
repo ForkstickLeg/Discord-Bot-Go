@@ -45,15 +45,20 @@ func getUserObj(id string, guildId string) structs.GuildMember {
 
 func (s *Silence) SilenceUser() {
 	timeout := time.Duration(s.time) * time.Minute
-	for {
-		select {
-		case <-time.After(timeout):
-			unmuteUser(s.userId, s.guildId)
-			return
-		default:
+	ticker := time.NewTicker(3 * time.Second)
+
+	go func() {
+		<-time.After(timeout)
+		unmuteUser(s.userId, s.guildId)
+		ticker.Stop()
+		fmt.Println("User unmuted after timeout:", s.userId)
+	}()
+
+	go func() {
+		for range ticker.C {
 			checkUserStatus(s.userId, s.guildId)
 		}
-	}
+	}()
 }
 
 func checkUserStatus(id string, guildId string) {
