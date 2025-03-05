@@ -23,7 +23,8 @@ WORKDIR /app
 # Install SQLite (if needed)
 RUN apt update && apt install -y sqlite3
 
-RUN 
+# Install certificates
+RUN apt-get update && apt-get install -y ca-certificates
 
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
