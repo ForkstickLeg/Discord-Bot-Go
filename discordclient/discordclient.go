@@ -47,7 +47,7 @@ func SetupDiscord() {
 
 	_, err = discord.ApplicationCommandBulkOverwrite(clientid, "", commands)
 	if err != nil {
-		fmt.Println("Error registering commands")
+		fmt.Println("Error registering commands, ", err)
 	}
 
 	discord.Identify.Intents = discordgo.IntentGuilds | discordgo.IntentGuildMembers | discordgo.IntentGuildMessages | discordgo.IntentMessageContent
@@ -76,7 +76,7 @@ func SetupDiscord() {
 
 	err = discord.Open()
 	if err != nil {
-		fmt.Println("Error opening session")
+		fmt.Println("Error opening session: ", err)
 	} else {
 		fmt.Println("Connection opened to Discord")
 	}
