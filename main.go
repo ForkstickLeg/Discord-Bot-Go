@@ -19,6 +19,7 @@ func main() {
 		fmt.Println("Running locally, .env loaded.")
 	}
 
+	fmt.Println(os.Getenv("APP_ENV"))
 	db := database.CreateDB()
 	defer db.Close()
 
