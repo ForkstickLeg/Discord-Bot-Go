@@ -45,7 +45,7 @@ func getUserObj(id string, guildId string) structs.GuildMember {
 
 func (s *Silence) SilenceUser() {
 	timeout := time.Duration(s.time) * time.Minute
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 
 	go func() {
 		<-time.After(timeout)
