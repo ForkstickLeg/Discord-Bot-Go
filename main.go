@@ -13,7 +13,8 @@ func main() {
 	if isRunningLocally() {
 		err := godotenv.Load("./.env")
 		if err != nil {
-			fmt.Println("Error loading env files")
+			fmt.Println("Error loading env files: ", err)
+			return
 		}
 		fmt.Println("Running locally, .env loaded.")
 	}
