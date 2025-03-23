@@ -23,8 +23,19 @@ WORKDIR /app
 # Install SQLite (if needed)
 RUN apt update && apt install -y sqlite3
 
+# Install certificates
+RUN apt-get update && apt-get install -y ca-certificates
+
 # Copy the built binary
 COPY --from=builder /app/myapp /app/myapp
+
+# Create env file
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "APP_ID=$APP_ID" > /app/.env' >> /app/start.sh && \
+    echo 'echo "APP_ENV=$APP_ENV" > /app/.env' >> /app/start.sh && \
+    echo 'echo "BOT_TOKEN=$BOT_TOKEN" >> /app/.env' >> /app/start.sh && \
+    echo './myapp' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
 # Run the app
 CMD ["./myapp"]
