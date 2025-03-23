@@ -22,4 +22,4 @@ jobs:
 
       - name: Build and Start Docker Compose
         run: |
-          APP_ID=${{ secrets.APP_ID }} BOT_TOKEN=${{ secrets.BOT_TOKEN }} docker compose up -d --build
+          APP_ID=${{ secrets.APP_ID }} BOT_TOKEN=${{ secrets.BOT_TOKEN }} APP_ENV=${{ secrets.APP_ENV }} docker compose up -d --build
