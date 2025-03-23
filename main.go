@@ -27,5 +27,6 @@ func main() {
 
 func isRunningLocally() bool {
 	env := os.Getenv("APP_ENV")
+	fmt.Println("Environment: ", env)
 	return env == "" || env == "local"
 }
